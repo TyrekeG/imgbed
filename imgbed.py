@@ -408,10 +408,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_image_list()
         if path_only == "/api/featured":
             return self._serve_featured()
-        if path_only == "/api/featured":
-            return self._serve_featured()
-        if path_only == "/api/featured":
-            return self._serve_featured()
         if path_only == "/api/categories":
             return self._serve_categories()
         if path_only == "/" or path_only.startswith("/?"):
@@ -800,200 +796,32 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
         except:
             return {}
 
-    def _gen_story(self, category, label, image_url):
-        import json as _json
-        today = time.strftime("%Y-%m-%d")
-        cache_dir = os.path.join(os.path.dirname(__file__), ".story_cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        cache_file = os.path.join(cache_dir, f"{today}_{category}.json")
-        if os.path.exists(cache_file):
-            try:
-                with open(cache_file) as f:
-                    return _json.load(f)
-            except: pass
-        ppio_env_path = "/opt/ppio-proxy/.env"
-        key = ""; api_base = "https://api.ppinfra.com/v3/openai"
-        if os.path.exists(ppio_env_path):
-            with open(ppio_env_path) as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("PPIO_API_KEYS="):
-                        key = line.split("=", 1)[1].split(",")[0].strip()
-                    elif line.startswith("PPIO_BASE_URL="):
-                        api_base = line.split("=", 1)[1].strip()
-        if not key: return {"story": "", "story_en": ""}
-        result = {"story": "", "story_en": ""}
-        # Vision
-        try:
-            data = _json.dumps({"model": "qwen/qwen3-vl-8b-instruct", "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": image_url}}, {"type": "text", "text": "Write one poetic line (under 12 words) about this photo. Just the line."}]}], "max_tokens": 30}).encode()
-            req = urllib.request.Request(f"{api_base}/chat/completions", data=data, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-            resp = urllib.request.urlopen(req, timeout=30)
-            result["story_en"] = _json.loads(resp.read())["choices"][0]["message"].get("content", "").strip().strip('"')
-        except Exception as e: print(f"Vision fail: {e}", file=sys.stderr)
-        # Translate
-        if result["story_en"]:
-            try:
-                data2 = _json.dumps({"model": "minimax/minimax-m3", "messages": [{"role": "user", "content": f"Translate to Chinese ONLY: {result["story_en"]}"}], "max_tokens": 500}).encode()
-                req2 = urllib.request.Request(f"{api_base}/chat/completions", data=data2, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-                resp2 = urllib.request.urlopen(req2, timeout=30)
-                result["story"] = _json.loads(resp2.read())["choices"][0]["message"].get("content", "").strip().strip('"')
-            except Exception as e: print(f"Translate fail: {e}", file=sys.stderr)
-        try:
-            with open(cache_file, "w") as f: _json.dump(result, f)
-        except: pass
-        return result
-
-
     def _serve_featured(self):
-        """Return today's featured image (deterministic by date)."""
-        import random, hashlib
+        import random, hashlib, json as _json
         today = time.strftime("%Y-%m-%d")
         seed = int(hashlib.md5(today.encode()).hexdigest()[:8], 16)
         rng = random.Random(seed)
-        
-        # Collect all non-thumb images
         all_images = []
         for root, dirs, files in os.walk(UPLOAD_DIR):
             for fn in files:
-                if fn.startswith('.') or '_thumb' in fn:
-                    continue
+                if fn.startswith('.') or '_thumb' in fn: continue
                 ext = os.path.splitext(fn)[1].lower()
-                if ext not in ('.webp', '.jpg', '.jpeg', '.png', '.gif'):
-                    continue
+                if ext not in ('.webp','.jpg','.jpeg','.png','.gif'): continue
                 rel = os.path.relpath(os.path.join(root, fn), UPLOAD_DIR)
                 parts = rel.split('/')
                 cat = parts[1] if len(parts) > 1 else 'uncategorized'
-                thumb_rel = os.path.relpath(
-                    os.path.join(root, f"{os.path.splitext(fn)[0]}_thumb.webp"),
-                    UPLOAD_DIR
-                ) if os.path.exists(os.path.join(root, f"{os.path.splitext(fn)[0]}_thumb.webp")) else rel
-                all_images.append({
-                    "url": f"{BASE_URL}/{urllib.request.quote(rel, safe='/')}",
-                    "thumb": f"{BASE_URL}/{urllib.request.quote(thumb_rel, safe='/')}",
-                    "category": cat,
-                    "categoryLabel": self._format_label(cat),
-                })
-        
-        if not all_images:
-            return self._json(404, {"error": "no images"})
-        
+                thumb = os.path.join(root, f"{os.path.splitext(fn)[0]}_thumb.webp")
+                thumb_rel = os.path.relpath(thumb, UPLOAD_DIR) if os.path.exists(thumb) else rel
+                all_images.append({"url":f"{BASE_URL}/{urllib.request.quote(rel, safe='/')}","thumb":f"{BASE_URL}/{urllib.request.quote(thumb_rel, safe='/')}","category":cat,"categoryLabel":self._format_label(cat)})
+        if not all_images: return self._json(404, {"error":"no images"})
         picked = rng.choice(all_images)
-        # Generate story
-        try:
-            story = self._gen_story(picked["category"], picked["categoryLabel"])
-            picked["story_en"] = story
-        except:
-            picked["story_en"] = ""
-        self._json(200, picked)
-
-
-    def _gen_story(self, category, label):
-        """Generate featured story via PPIO, cached by date+category."""
-        import json as _json
-        today = time.strftime("%Y-%m-%d")
-        cache_key = f"{today}_{category}"
-        cache_dir = os.path.join(os.path.dirname(__file__), ".story_cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        cache_file = os.path.join(cache_dir, f"{cache_key}.txt")
-        
+        cache_file = os.path.join(os.path.dirname(__file__), ".story_cache", f"{picked['category']}.json")
         if os.path.exists(cache_file):
             try:
-                with open(cache_file) as f:
-                    return f.read().strip()
-            except:
-                pass
-        
-        ppio_env_path = "/opt/ppio-proxy/.env"
-        key = ""
-        api_base = "https://api.ppinfra.com/v3/openai"
-        if os.path.exists(ppio_env_path):
-            with open(ppio_env_path) as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("PPIO_API_KEYS="):
-                        key = line.split("=", 1)[1].split(",")[0].strip()
-                    elif line.startswith("PPIO_BASE_URL="):
-                        api_base = line.split("=", 1)[1].strip()
-        
-        if not key:
-            return ""
-        
-        story = ""
-        try:
-            prompt = f'You are a curator. From "{label}" — write one poetic line (under 12 words), a quiet moment glimpsed. Only the line. No reasoning.'
-            data = _json.dumps({
-                "model": "minimax/minimax-m3",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 5000,
-                "temperature": 0.95
-            }).encode()
-            req = urllib.request.Request(
-                f"{api_base}/chat/completions",
-                data=data,
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-            )
-            resp = urllib.request.urlopen(req, timeout=30)
-            j = _json.loads(resp.read())
-            story = j["choices"][0]["message"].get("content", "").strip().strip('"')
-        except Exception as e:
-            print(f"Story gen failed: {e}", file=sys.stderr)
-        
-        if story:
-            try:
-                with open(cache_file, "w") as f:
-                    f.write(story)
-            except:
-                pass
-        
-        return story
-
-
-    def _serve_featured(self):
-        """Return today's featured image (deterministic by date) + cached story."""
-        import random, hashlib
-        today = time.strftime("%Y-%m-%d")
-        seed = int(hashlib.md5(today.encode()).hexdigest()[:8], 16)
-        rng = random.Random(seed)
-        
-        all_images = []
-        for root, dirs, files in os.walk(UPLOAD_DIR):
-            for fn in files:
-                if fn.startswith('.') or '_thumb' in fn:
-                    continue
-                ext = os.path.splitext(fn)[1].lower()
-                if ext not in ('.webp', '.jpg', '.jpeg', '.png', '.gif'):
-                    continue
-                rel = os.path.relpath(os.path.join(root, fn), UPLOAD_DIR)
-                parts = rel.split('/')
-                cat = parts[1] if len(parts) > 1 else 'uncategorized'
-                thumb_rel = os.path.relpath(
-                    os.path.join(root, f"{os.path.splitext(fn)[0]}_thumb.webp"),
-                    UPLOAD_DIR
-                ) if os.path.exists(os.path.join(root, f"{os.path.splitext(fn)[0]}_thumb.webp")) else rel
-                all_images.append({
-                    "url": f"{BASE_URL}/{urllib.request.quote(rel, safe='/')}",
-                    "thumb": f"{BASE_URL}/{urllib.request.quote(thumb_rel, safe='/')}",
-                    "category": cat,
-                    "categoryLabel": self._format_label(cat),
-                })
-        
-        if not all_images:
-            return self._json(404, {"error": "no images"})
-        
-        picked = rng.choice(all_images)
-        
-        # Read cached story (generated by external cron)
-        import json as _json
-        cache_dir = os.path.join(os.path.dirname(__file__), ".story_cache")
-        cache_file = os.path.join(cache_dir, f"{today}_{picked['category']}.json")
-        if os.path.exists(cache_file):
-            try:
-                with open(cache_file) as f:
-                    story = _json.load(f)
-                picked["story"] = story.get("story", "")
-                picked["story_en"] = story.get("story_en", "")
+                with open(cache_file) as f: s = _json.load(f)
+                picked["story"] = s.get("story","")
+                picked["story_en"] = s.get("story_en","")
             except: pass
-        
         self._json(200, picked)
 
 
