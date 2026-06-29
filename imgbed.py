@@ -308,10 +308,16 @@ function showFolder(folder){
   folder.images.forEach(d=>{
     const div=document.createElement('div');div.className='card';
     const metaHTML=`${formatSize(d.size)}`;
-    div.innerHTML=`<img src="${d.thumb||d.url}" loading="lazy"><div class="info"><div class="url">${d.url}</div><div class="meta">${metaHTML}</div></div><div class="actions"><button onclick="copyUrl('${d.url}')">Copy URL</button><button onclick="copyUrl('![](${d.url})')">Copy MD</button><button onclick="window.open('${d.url}')">Open</button><button onclick="setCover('${cat}','${d.thumb||d.url}')" style="background:#fef3c7;color:#92400e;border-color:#fcd34d">⭐ 封面</button></div>`;
+    div.innerHTML=`<img src="${d.thumb||d.url}" loading="lazy"><div class="info"><div class="url">${d.url}</div><div class="meta">${metaHTML}</div></div><div class="actions"><button onclick="copyUrl('${d.url}')">Copy URL</button><button onclick="copyUrl('![](${d.url})')">Copy MD</button><button onclick="window.open('${d.url}')">Open</button>button onclick="delImg('${d.url}', '${cat}')" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5">🗑️</button><button onclick="setCover('${cat}','${d.thumb||d.url}')" style="background:#fef3c7;color:#92400e;border-color:#fcd34d">⭐ 封面</button></div>`;
     res.appendChild(div);
   });
 }
+    async function delImg(url, cat){
+      if(!confirm('确认删除这张图？'))return;
+      const key=url.replace('https://i.juho.uk/', '');
+      const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});
+      if(r.ok){alert('已删除');loadImages(cat);}else{alert('删除失败');}
+    }
 
 async function setCover(cat, url){
   if(!confirm('设 ' + url.split('/').pop() + ' 为封面？')) return;
@@ -412,6 +418,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_categories()
         if path_only == "/" or path_only.startswith("/?"):
             return self._serve_html()
+        if path_only == "/api/delete":
+            return self._handle_delete()
         if path_only == "/stats":
             return self._serve_stats()
         
@@ -473,6 +481,8 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.rstrip("/") or "/"
         # Strip query string for path matching
         path_only = path.split("?", 1)[0]
+        if path_only == "/api/delete":
+            return self._handle_delete()
         
         # Category meta update (cover / description)
         if path == "/api/category-meta":
@@ -765,6 +775,44 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _handle_delete(self):
+        """POST /api/delete — delete an image locally and from R2."""
+        import json as _json
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = _json.loads(self.rfile.read(length))
+            key = body.get("key", "").strip()
+            if not key or ".." in key:
+                return self._json(400, {"error": "invalid key"})
+            # Delete from R2
+            delete_from_r2(key)
+            # Delete local
+            local_path = os.path.join(UPLOAD_DIR, key)
+            if os.path.exists(local_path):
+                os.remove(local_path)
+            # Delete thumbnail
+            thumb_key = os.path.splitext(key)[0] + "_thumb.webp"
+            thumb_path = os.path.join(UPLOAD_DIR, thumb_key)
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
+            # Delete thumb variant
+            for ext in (".webp", ".jpg", ".png"):
+                thumb_key2 = os.path.splitext(key)[0] + "_thumb" + ext
+                thumb_path2 = os.path.join(UPLOAD_DIR, thumb_key2)
+                if thumb_path2 != thumb_path and os.path.exists(thumb_path2):
+                    os.remove(thumb_path2)
+            # Remove from tracking
+            tracking = load_tracking()
+            if key in tracking.get("objects", {}):
+                sz = tracking["objects"][key].get("size", 0)
+                tracking["total_bytes"] = max(0, tracking["total_bytes"] - sz)
+                del tracking["objects"][key]
+                save_tracking(tracking)
+            return self._json(200, {"ok": True, "key": key})
+        except Exception as e:
+            return self._json(500, {"error": str(e)})
+
 
     def _serve_stats(self):
         tracking = load_tracking()
