@@ -308,15 +308,15 @@ function showFolder(folder){
   folder.images.forEach(d=>{
     const div=document.createElement('div');div.className='card';
     const metaHTML=`${formatSize(d.size)}`;
-    div.innerHTML=`<img src="${d.thumb||d.url}" loading="lazy"><div class="info"><div class="url">${d.url}</div><div class="meta">${metaHTML}</div></div><div class="actions"><button onclick="copyUrl('${d.url}')">Copy URL</button><button onclick="copyUrl('![](${d.url})')">Copy MD</button><button onclick="window.open('${d.url}')">Open</button><button onclick="delImg('${d.url}', '${cat}')" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5">🗑️</button><button onclick="setCover('${cat}','${d.thumb||d.url}')" style="background:#fef3c7;color:#92400e;border-color:#fcd34d">⭐ 封面</button></div>`;
+    div.innerHTML=`<img src="${d.thumb||d.url}" loading="lazy"><div class="info"><div class="url">${d.url}</div><div class="meta">${metaHTML}</div></div><div class="actions"><button onclick="copyUrl('${d.url}')">Copy URL</button><button onclick="copyUrl('![](${d.url})')">Copy MD</button><button onclick="window.open('${d.url}')">Open</button><button onclick="delImg('${d.url}', '${cat}', event)" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5">🗑️</button><button onclick="setCover('${cat}','${d.thumb||d.url}')" style="background:#fef3c7;color:#92400e;border-color:#fcd34d">⭐ 封面</button></div>`;
     res.appendChild(div);
   });
 }
-    async function delImg(url, cat){
+    async function delImg(url, cat, ev){
       if(!confirm('确认删除这张图？'))return;
       const key=url.replace('https://i.juho.uk/', '');
       const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});
-      if(r.ok){const card=event.target.closest(".card");if(card)card.remove();}else{alert("删除失败");}
+      if(r.ok){const card=ev.target.closest(".card");if(card)card.remove();}else{alert("删除失败");}
     }
 
 async function setCover(cat, url){
