@@ -406,6 +406,8 @@ class Handler(BaseHTTPRequestHandler):
         
         if path_only == "/api/images":
             return self._serve_image_list()
+        if path_only == "/api/featured":
+            return self._serve_featured()
         if path_only == "/api/categories":
             return self._serve_categories()
         if path_only == "/" or path_only.startswith("/?"):
@@ -793,6 +795,43 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
                 return json.load(f)
         except:
             return {}
+
+    def _serve_featured(self):
+        """Return today's featured image (deterministic by date)."""
+        import random, hashlib
+        today = time.strftime("%Y-%m-%d")
+        seed = int(hashlib.md5(today.encode()).hexdigest()[:8], 16)
+        rng = random.Random(seed)
+        
+        # Collect all non-thumb images
+        all_images = []
+        for root, dirs, files in os.walk(UPLOAD_DIR):
+            for fn in files:
+                if fn.startswith('.') or '_thumb' in fn:
+                    continue
+                ext = os.path.splitext(fn)[1].lower()
+                if ext not in ('.webp', '.jpg', '.jpeg', '.png', '.gif'):
+                    continue
+                rel = os.path.relpath(os.path.join(root, fn), UPLOAD_DIR)
+                parts = rel.split('/')
+                cat = parts[1] if len(parts) > 1 else 'uncategorized'
+                thumb_rel = os.path.relpath(
+                    os.path.join(root, f"{os.path.splitext(fn)[0]}_thumb.webp"),
+                    UPLOAD_DIR
+                ) if os.path.exists(os.path.join(root, f"{os.path.splitext(fn)[0]}_thumb.webp")) else rel
+                all_images.append({
+                    "url": f"{BASE_URL}/{urllib.request.quote(rel, safe='/')}",
+                    "thumb": f"{BASE_URL}/{urllib.request.quote(thumb_rel, safe='/')}",
+                    "category": cat,
+                    "categoryLabel": self._format_label(cat),
+                })
+        
+        if not all_images:
+            return self._json(404, {"error": "no images"})
+        
+        picked = rng.choice(all_images)
+        self._json(200, picked)
+
 
     def _serve_categories(self):
         """Return category metadata — light payload for gallery listing."""
