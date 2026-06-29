@@ -316,7 +316,7 @@ function showFolder(folder){
       if(!confirm('确认删除这张图？'))return;
       const key=url.replace('https://i.juho.uk/', '');
       const r=await fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});
-      if(r.ok){alert('已删除');loadFolders(); setTimeout(() => location.reload(), 500);}else{alert('删除失败');}
+      if(r.ok){const card=event.target.closest(".card");if(card)card.remove();}else{alert("删除失败");}
     }
 
 async function setCover(cat, url){
