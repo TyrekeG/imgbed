@@ -237,7 +237,7 @@ async function loadStats(){
   try{
     const r=await fetch('/stats');
     const d=await r.json();
-    document.getElementById('stats').innerHTML=`<span>📤 ${d.daily_count}/${d.daily_limit} today</span><span>💾 ${d.storage_used} / ${d.storage_max}</span><span>☁️ R2: ${d.r2_status}</span>`;
+    document.getElementById('stats').innerHTML=`<span>📤 ${d.daily_count}/${d.daily_limit} today</span><span>💾 ${d.storage_used} / ${d.storage_max}</span><span>☁️ R2: ${d.r2_used} / ${d.r2_max}</span>`;
     if(d.denied){
       dz.classList.add('denied');
       dz.querySelector('p').textContent='⚠️ Upload limit reached. Try again tomorrow.';
@@ -774,7 +774,7 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
             "daily_limit": DAILY_UPLOAD_LIMIT,
             "storage_used": f"{total_gb:.2f}GB",
             "storage_max": f"{STORAGE_MAX_GB}GB",
-            "r2_status": "connected" if True else "offline",
+            "r2_used": f"{total_gb:.2f}GB", "r2_max": f"{STORAGE_MAX_GB}GB", "r2_status": "connected",
             "denied": daily_count >= DAILY_UPLOAD_LIMIT or total_gb >= STORAGE_MAX_GB,
         })
 
