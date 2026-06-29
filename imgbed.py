@@ -863,7 +863,8 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
                 all_images.append({"url":f"{BASE_URL}/{urllib.request.quote(rel, safe='/')}","thumb":f"{BASE_URL}/{urllib.request.quote(thumb_rel, safe='/')}","category":cat,"categoryLabel":self._format_label(cat)})
         if not all_images: return self._json(404, {"error":"no images"})
         picked = rng.choice(all_images)
-        cache_file = os.path.join(os.path.dirname(__file__), ".story_cache", f"{picked['category']}.json")
+        img_fn = os.path.splitext(picked["url"].split("/")[-1])[0]
+        cache_file = os.path.join(os.path.dirname(__file__), ".story_cache", f"{img_fn}.json")
         if os.path.exists(cache_file):
             try:
                 with open(cache_file) as f: s = _json.load(f)

@@ -35,13 +35,11 @@ def main():
         if not os.path.isdir(dp): continue
         imgs = [f for f in os.listdir(dp) if not f.startswith('.') and '_thumb' not in f]
         if not imgs: continue
-        cache_file = os.path.join(CACHE_DIR, f"{cat}.json")
+        cache_file = os.path.join(CACHE_DIR, f"{os.path.splitext(imgs[0])[0]}.json")
         # Skip if generated today
         if os.path.exists(cache_file):
-            mtime = os.path.getmtime(cache_file)
-            if time.strftime("%Y-%m-%d") == time.strftime("%Y-%m-%d", time.localtime(mtime)):
-                print(f"{cat}: cached (today)")
-                continue
+            print(f"{cat}: cached")
+            continue
         url = f"https://i.juho.uk/{time.strftime('%Y-%m')}/{cat}/{imgs[0]}"
         prompt = "Line 1: describe this photo in English (under 10 words). Line 2: Chinese translation (under 10 chars). No labels."
         data = {
