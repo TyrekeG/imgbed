@@ -33,9 +33,9 @@ R2_API = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT}/r2/buckets
 ACCESS_PIN = "gordona"
 
 # ── Safety Limits ──
-DAILY_UPLOAD_LIMIT = 200
-STORAGE_WARN_GB = 7
-STORAGE_MAX_GB = 8
+DAILY_UPLOAD_LIMIT = 20000
+STORAGE_WARN_GB = 45
+STORAGE_MAX_GB = 50
 
 # ── Tracking ──
 TRACK_FILE = "/opt/imgbed/.tracking.json"
