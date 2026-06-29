@@ -46,8 +46,8 @@ ACCESS_PIN = "gordona"
 
 # ── Safety Limits ──
 DAILY_UPLOAD_LIMIT = 20000
-STORAGE_WARN_GB = 45
-STORAGE_MAX_GB = 50
+STORAGE_WARN_GB = 7
+STORAGE_MAX_GB = 9
 
 # ── Tracking ──
 TRACK_FILE = "/opt/imgbed/.tracking.json"
