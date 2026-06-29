@@ -800,7 +800,7 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
         cats = []
         base = os.path.join(UPLOAD_DIR, time.strftime("%Y-%m"))
         if os.path.isdir(base):
-            for d in sorted(os.listdir(base)):
+            for d in sorted(os.listdir(base), key=lambda x: os.path.getmtime(os.path.join(base, x)), reverse=True):
                 dp = os.path.join(base, d)
                 if not os.path.isdir(dp):
                     continue
@@ -843,7 +843,7 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
         descriptions = self._load_descriptions()
         result = []
         for root, dirs, files in os.walk(UPLOAD_DIR):
-            for fn in sorted(files, reverse=True):
+            for fn in sorted(files, key=lambda x: os.path.getmtime(os.path.join(root, x)), reverse=True):
                 if fn.startswith('.') or '_thumb' in fn:
                     continue
                 ext = os.path.splitext(fn)[1].lower()
