@@ -830,7 +830,74 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
             return self._json(404, {"error": "no images"})
         
         picked = rng.choice(all_images)
+        # Generate story
+        try:
+            story = self._gen_story(picked["category"], picked["categoryLabel"])
+            picked["story_en"] = story
+        except:
+            picked["story_en"] = ""
         self._json(200, picked)
+
+
+    def _gen_story(self, category, label):
+        """Generate featured story via PPIO, cached by date+category."""
+        import json as _json
+        today = time.strftime("%Y-%m-%d")
+        cache_key = f"{today}_{category}"
+        cache_dir = os.path.join(os.path.dirname(__file__), ".story_cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_file = os.path.join(cache_dir, f"{cache_key}.txt")
+        
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file) as f:
+                    return f.read().strip()
+            except:
+                pass
+        
+        ppio_env_path = "/opt/ppio-proxy/.env"
+        key = ""
+        api_base = "https://api.ppinfra.com/v3/openai"
+        if os.path.exists(ppio_env_path):
+            with open(ppio_env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("PPIO_API_KEYS="):
+                        key = line.split("=", 1)[1].split(",")[0].strip()
+                    elif line.startswith("PPIO_BASE_URL="):
+                        api_base = line.split("=", 1)[1].strip()
+        
+        if not key:
+            return ""
+        
+        story = ""
+        try:
+            prompt = f'You are a curator. From "{label}" — write one poetic line (under 12 words), a quiet moment glimpsed. Only the line. No reasoning.'
+            data = _json.dumps({
+                "model": "minimax/minimax-m3",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 500,
+                "temperature": 0.95
+            }).encode()
+            req = urllib.request.Request(
+                f"{api_base}/chat/completions",
+                data=data,
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            )
+            resp = urllib.request.urlopen(req, timeout=30)
+            j = _json.loads(resp.read())
+            story = j["choices"][0]["message"].get("content", "").strip().strip('"')
+        except Exception as e:
+            print(f"Story gen failed: {e}", file=sys.stderr)
+        
+        if story:
+            try:
+                with open(cache_file, "w") as f:
+                    f.write(story)
+            except:
+                pass
+        
+        return story
 
 
     def _serve_categories(self):
