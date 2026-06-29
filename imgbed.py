@@ -614,6 +614,23 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     thumb_url = None
             
+            # Dedup check
+            new_hash = hashlib.md5(file_data).hexdigest()
+            for existing in os.listdir(serve_folder):
+                if existing == fname or existing.startswith("."):
+                    continue
+                existing_path = os.path.join(serve_folder, existing)
+                try:
+                    with open(existing_path, "rb") as f:
+                        if hashlib.md5(f.read()).hexdigest() == new_hash:
+                            os.remove(os.path.join(serve_folder, fname))
+                            if thumb_name:
+                                try: os.remove(os.path.join(serve_folder, thumb_name))
+                                except: pass
+                            return self._json(200, {"ok": True, "deduped": True, "url": f"{BASE_URL}/{date_folder}/{existing}"})
+                except:
+                    pass
+
             # Update tracking
             today = today_key()
             if today not in tracking["daily"]:
@@ -809,6 +826,7 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
             for pair in self.path.split('?', 1)[1].split('&'):
                 if pair.startswith('category='):
                     filter_cat = pair.split('=', 1)[1]
+                    filter_cat = urllib.parse.unquote(filter_cat)
                     filter_cat = urllib.parse.unquote(filter_cat)
         descriptions = self._load_descriptions()
         result = []
