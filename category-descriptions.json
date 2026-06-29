@@ -1,14 +1,22 @@
 {
   "zoe": {
     "description": "早期 Zoe 在训练叶子 🍃",
-    "cover": "https://i.juho.uk/2026-06/zoe/a9835d15_thumb.webp"
+    "cover": "https://i.juho.uk/2026-06/zoe/a9835d15_thumb.webp",
+    "description_en": "In the early days, Zoe was whispering to the leaves 🍃"
   },
   "thailand-tour": {
     "description": "Thailand 漫游：热带的温度、光影与不期而遇",
-    "cover": "https://i.juho.uk/2026-06/thailand-tour/5f133269_thumb.webp"
+    "cover": "https://i.juho.uk/2026-06/thailand-tour/5f133269_thumb.webp",
+    "description_en": "Thailand roaming — tropical heat, light & serendipity"
   },
   "Shirly": {
     "description": "Shirly 相信美是唯一合法的犯罪现场，每张照片都是一次逃逸未遂 📸🖤",
-    "cover": "https://i.juho.uk/2026-06/Shirly/42d80a5c_thumb.webp"
+    "cover": "https://i.juho.uk/2026-06/Shirly/42d80a5c_thumb.webp",
+    "description_en": "Shirly believes beauty is the only legal crime scene — every photo an escape attempt 📸🖤"
+  },
+  "london-tour": {
+    "description": "伦敦漫游：雾都的光影、街角与偶遇 🇬🇧",
+    "description_en": "London roaming — fog, light, street corners & serendipity 🇬🇧",
+    "cover": "https://i.juho.uk/2026-06/london-tour/fd83296d.webp"
   }
 }

@@ -402,7 +402,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_stats()
         
         # Serve file: local cache first, then try R2
-        rel = path.lstrip("/")
+        rel = urllib.parse.unquote(path.lstrip("/"))
         if ".." in rel:
             return self._send_error(403)
         
@@ -441,7 +441,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             return
-        rel = path.lstrip("/")
+        rel = urllib.parse.unquote(path.lstrip("/"))
         filepath = os.path.join(UPLOAD_DIR, rel)
         if os.path.isfile(cache_path):
             self.send_response(200)
@@ -492,7 +492,7 @@ class Handler(BaseHTTPRequestHandler):
             if 'name="category"' in headers_raw:
                 cat_val = part[hdr_end+4:].decode("utf-8", errors="replace").strip()
                 if cat_val and cat_val not in ('custom',):
-                    category = cat_val
+                    category = cat_val.replace(" ", "-").lower()
                 continue
             
             if 'filename="' not in headers_raw: continue
@@ -514,7 +514,7 @@ class Handler(BaseHTTPRequestHandler):
                     val_start = part_init.find(b"\r\n\r\n") + 4
                     cat_val = part_init[val_start:].decode("utf-8", errors="replace").strip()
                     if cat_val and cat_val not in ('custom',):
-                        category = cat_val
+                        category = cat_val.replace(" ", "-").lower()
                     break
             date_folder = time.strftime("%Y-%m") + "/" + category
             uid = uuid.uuid4().hex[:8]
@@ -797,6 +797,7 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
                     "count": count,
                     "cover": cover,
                     "description": desc,
+                    "description_en": (meta.get("description_en", "") if isinstance(meta, dict) else ""),
                     "value": d,  # for upload dropdown compat
                 })
         self._json(200, cats)
@@ -808,6 +809,7 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
             for pair in self.path.split('?', 1)[1].split('&'):
                 if pair.startswith('category='):
                     filter_cat = pair.split('=', 1)[1]
+                    filter_cat = urllib.parse.unquote(filter_cat)
         descriptions = self._load_descriptions()
         result = []
         for root, dirs, files in os.walk(UPLOAD_DIR):
@@ -845,14 +847,15 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
                     custom_cover = ""
                     cat_desc = cat_meta if isinstance(cat_meta, str) else ""
                 result.append({
-                    "url": f"{BASE_URL}/{rel}",
-                    "thumb": f"{BASE_URL}/{thumb_rel}" if thumb_rel else f"{BASE_URL}/{rel}",
+                    "url": f"{BASE_URL}/{urllib.request.quote(rel, safe='/')}",
+                    "thumb": f"{BASE_URL}/{urllib.request.quote(thumb_rel, safe='/')}" if thumb_rel else f"{BASE_URL}/{urllib.request.quote(rel, safe='/')}",
                     "size": size,
                     "mtime": mtime,
                     "date": time.strftime("%Y-%m-%d", time.localtime(mtime)),
                     "category": cat,
                     "categoryLabel": self._format_label(cat),
                     "description": cat_desc,
+                    "description_en": cat_meta.get("description_en", "") if isinstance(cat_meta, dict) else "",
                     "categoryCover": custom_cover,
                 })
         body = json.dumps(result).encode()
