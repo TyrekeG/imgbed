@@ -11,6 +11,18 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from PIL import Image
 import urllib.request, urllib.error
 
+
+# ── Load .env ──
+import os as _os
+_env_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), ".env")
+if _os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _key, _val = _line.split("=", 1)
+                _os.environ.setdefault(_key.strip(), _val.strip())
+
 # ── Config ──
 UPLOAD_DIR = os.environ.get("IMGBED_DIR", "/opt/imgbed/uploads")
 CACHE_DIR = os.environ.get("IMGBED_CACHE", "/opt/imgbed/cache")
