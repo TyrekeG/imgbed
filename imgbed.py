@@ -25,14 +25,15 @@ if _os.path.exists(_env_path):
 
 # ── Config ──
 UPLOAD_DIR = os.environ.get("IMGBED_DIR", "/opt/imgbed/uploads")
+EXCLUDE_CATEGORIES = {"p", "home"}  # personal photos, not shown in Aperture
 CACHE_DIR = os.environ.get("IMGBED_CACHE", "/opt/imgbed/cache")
 HOST = os.environ.get("IMGBED_HOST", "0.0.0.0")
 PORT = int(os.environ.get("IMGBED_PORT", "3003"))
 BASE_URL = "https://i.juho.uk"
 MAX_SIZE = 20 * 1024 * 1024
 WEBP_QUALITY = 80
-MAX_DIMENSION = 2400
-THUMB_SIZE = (600, 600)
+MAX_DIMENSION = 1600
+THUMB_SIZE = (800, 800)
 
 # ── R2 Config ──
 CF_ACCOUNT = "b4f2dd73bb0804bc199769c4fa4644df"
@@ -200,6 +201,7 @@ HTML = r"""<!DOCTYPE html>
       <option value="viewfinder">取景器内</option>
       <option value="sartorial">Sartorial 切片</option>
       <option value="misc">杂物 Misc</option>
+      <option value="home">🏠 Home 首页</option>
       <option value="custom" id="customOpt">自定义…</option>
     </select>
     <input type="text" id="customCat" placeholder="输入分类名" style="display:none;margin-left:8px;padding:6px 12px;border:2px solid #e5e7eb;border-radius:8px;font-size:0.85rem;background:#fff;color:#333;width:160px">
@@ -267,7 +269,7 @@ async function loadCategories(){
 }
 async function loadFolders(){
   try{
-    const r=await fetch('/api/images');
+    const r=await fetch('/api/images?show_all=1');
     const imgs=await r.json();
     // Group by category
     const folders={};
@@ -414,6 +416,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_image_list()
         if path_only == "/api/featured":
             return self._serve_featured()
+        if path_only == "/api/homepage":
+            return self._serve_homepage()
         if path_only == "/api/categories":
             return self._serve_categories()
         if path_only == "/" or path_only.startswith("/?"):
@@ -591,7 +595,7 @@ class Handler(BaseHTTPRequestHandler):
                     thumb_img.thumbnail(THUMB_SIZE)
                     thumb_buf = io.BytesIO()
                     thumb_fmt = "WEBP" if converted else fmt
-                    thumb_img.save(thumb_buf, format=thumb_fmt, quality=80)
+                    thumb_img.save(thumb_buf, format=thumb_fmt, quality=60)
                     thumb_data = thumb_buf.getvalue()
                     thumb_name = f"{uid}_thumb.webp"
                 else:
@@ -849,18 +853,20 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
         today = time.strftime("%Y-%m-%d")
         seed = int(hashlib.md5(today.encode()).hexdigest()[:8], 16)
         rng = random.Random(seed)
+        # Only pull from the dedicated "home" category
+        home_dir = os.path.join(UPLOAD_DIR, time.strftime("%Y-%m"), "home")
         all_images = []
-        for root, dirs, files in os.walk(UPLOAD_DIR):
-            for fn in files:
+        if os.path.isdir(home_dir):
+            for fn in sorted(os.listdir(home_dir)):
                 if fn.startswith('.') or '_thumb' in fn: continue
                 ext = os.path.splitext(fn)[1].lower()
                 if ext not in ('.webp','.jpg','.jpeg','.png','.gif'): continue
-                rel = os.path.relpath(os.path.join(root, fn), UPLOAD_DIR)
-                parts = rel.split('/')
-                cat = parts[1] if len(parts) > 1 else 'uncategorized'
-                thumb = os.path.join(root, f"{os.path.splitext(fn)[0]}_thumb.webp")
-                thumb_rel = os.path.relpath(thumb, UPLOAD_DIR) if os.path.exists(thumb) else rel
-                all_images.append({"url":f"{BASE_URL}/{urllib.request.quote(rel, safe='/')}","thumb":f"{BASE_URL}/{urllib.request.quote(thumb_rel, safe='/')}","category":cat,"categoryLabel":self._format_label(cat)})
+                rel = f"{time.strftime('%Y-%m')}/home/{fn}"
+                thumb_rel = f"{time.strftime('%Y-%m')}/home/{os.path.splitext(fn)[0]}_thumb.webp"
+                thumb_path = os.path.join(home_dir, f"{os.path.splitext(fn)[0]}_thumb.webp")
+                if not os.path.exists(thumb_path):
+                    thumb_rel = rel
+                all_images.append({"url":f"{BASE_URL}/{urllib.request.quote(rel, safe='/')}","thumb":f"{BASE_URL}/{urllib.request.quote(thumb_rel, safe='/')}","category":"home","categoryLabel":"Home"})
         if not all_images: return self._json(404, {"error":"no images"})
         picked = rng.choice(all_images)
         img_fn = os.path.splitext(picked["url"].split("/")[-1])[0]
@@ -874,6 +880,23 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
         self._json(200, picked)
 
 
+    def _serve_homepage(self):
+        """Return all images from the 'home' category for the homepage carousel."""
+        import glob as _glob
+        home_dir = os.path.join(UPLOAD_DIR, time.strftime("%Y-%m"), "home")
+        images = []
+        if os.path.isdir(home_dir):
+            for fn in sorted(os.listdir(home_dir)):
+                if fn.startswith('.') or '_thumb' in fn: continue
+                ext = os.path.splitext(fn)[1].lower()
+                if ext not in ('.webp','.jpg','.jpeg','.png','.gif'): continue
+                rel = f"{time.strftime('%Y-%m')}/home/{fn}"
+                images.append({
+                    "url": f"{BASE_URL}/{urllib.request.quote(rel, safe='/')}",
+                    "cat": "Home"
+                })
+        self._json(200, images)
+
     def _serve_categories(self):
         """Return category metadata — light payload for gallery listing."""
         descriptions = self._load_descriptions()
@@ -884,6 +907,8 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
                 dp = os.path.join(base, d)
                 if not os.path.isdir(dp):
                     continue
+                if d in EXCLUDE_CATEGORIES:
+                    continue
                 # Count images
                 imgs = [f for f in os.listdir(dp) if not f.startswith('.') and '_thumb' not in f]
                 count = len(imgs)
@@ -891,15 +916,10 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
                 meta = descriptions.get(d, "")
                 desc = meta.get("description", "") if isinstance(meta, dict) else (meta if isinstance(meta, str) else "")
                 cover = meta.get("cover", "") if isinstance(meta, dict) else ""
-                # Auto-cover if not set: use most recent thumb
+                # Auto-cover if not set: use most recent full image
                 if not cover and imgs:
                     newest = max(imgs, key=lambda f: os.path.getmtime(os.path.join(dp, f)))
-                    name_no_ext = os.path.splitext(newest)[0]
-                    thumb_name = f"{name_no_ext}_thumb.webp"
-                    if os.path.exists(os.path.join(dp, thumb_name)):
-                        cover = f"{BASE_URL}/{time.strftime('%Y-%m')}/{d}/{thumb_name}"
-                    else:
-                        cover = f"{BASE_URL}/{time.strftime('%Y-%m')}/{d}/{newest}"
+                    cover = f"{BASE_URL}/{time.strftime('%Y-%m')}/{d}/{newest}"
                 cats.append({
                     "category": d,
                     "label": label,
@@ -912,14 +932,24 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
         self._json(200, cats)
 
     def _serve_image_list(self):
-        """Return images, optionally filtered by category. Supports ?category=zoe"""
+        """Return images, optionally filtered by category. Supports ?category=zoe&offset=0&limit=50"""
         filter_cat = None
+        show_all = False
+        offset = 0
+        limit = 50
         if '?' in self.path:
             for pair in self.path.split('?', 1)[1].split('&'):
                 if pair.startswith('category='):
                     filter_cat = pair.split('=', 1)[1]
                     filter_cat = urllib.parse.unquote(filter_cat)
-                    filter_cat = urllib.parse.unquote(filter_cat)
+                elif pair == 'show_all=1':
+                    show_all = True
+                elif pair.startswith('offset='):
+                    try: offset = int(pair.split('=', 1)[1])
+                    except: pass
+                elif pair.startswith('limit='):
+                    try: limit = min(int(pair.split('=', 1)[1]), 200)
+                    except: pass
         descriptions = self._load_descriptions()
         result = []
         for root, dirs, files in os.walk(UPLOAD_DIR):
@@ -945,6 +975,9 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
                 # Extract category from path
                 parts = rel.split('/')
                 cat = parts[1] if len(parts) > 1 else 'uncategorized'
+                # Skip excluded categories (unless show_all)
+                if not show_all and cat in EXCLUDE_CATEGORIES:
+                    continue
                 # Apply category filter if specified
                 if filter_cat and cat != filter_cat:
                     continue
@@ -968,7 +1001,11 @@ function go(){if(p.value){sessionStorage.setItem('imgbed_pin',p.value);window.lo
                     "description_en": cat_meta.get("description_en", "") if isinstance(cat_meta, dict) else "",
                     "categoryCover": custom_cover,
                 })
-        body = json.dumps(result).encode()
+        total = len(result)
+        # Slice for pagination
+        paged = result[offset:offset + limit] if offset or limit < total else result
+        response_obj = {"images": paged, "total": total}
+        body = json.dumps(response_obj).encode()
         etag = '"' + hashlib.md5(body).hexdigest()[:12] + '"'
         # Check If-None-Match for 304 before sending 200
         if self.headers.get("If-None-Match") == etag:
